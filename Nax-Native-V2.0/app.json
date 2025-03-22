@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Nax",
+    "slug": "naxnative-v20",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/appstore.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/loadingscreen.png",
+      "resizeMode": "contain ",
+      "backgroundColor": "#0A0D17"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.shayan09.naxnativev20"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/appstore.png",
+        "backgroundColor": "#ffff"
+      },
+      "package": "com.shayan09.naxnativev20"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "413c97c8-ecc4-4059-bf80-91ac1f396cba"
+      }
+    },
+    "owner": "shayan09"
+  }
+}
