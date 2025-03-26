@@ -1,7 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import { StyleSheet, Text, View, TextInput, Button, TouchableOpacity, FlatList, Dimensions, SafeAreaView } from 'react-native';
+import { StyleSheet, Text, View, TextInput, Button, TouchableOpacity, FlatList, Dimensions, SafeAreaView, useWindowDimensions } from 'react-native';
 import { useState, useMemo, useRef, useEffect, use} from 'react';
 import React from 'react';
 import FontAwesome6 from 'react-native-vector-icons/FontAwesome6';
@@ -17,20 +17,18 @@ import  * as  SplashScreen from 'expo-splash-screen';
 
 // Don't automatically hide the splash screen
 SplashScreen.preventAutoHideAsync();
-
 SplashScreen.setOptions({
-  duration: 1000,
+  duration: 500,
   fade: true,
 });
 
-const Stack = createNativeStackNavigator();
+const {width, height} = Dimensions.get("window")
 
-// Get the dimensions of the window
-const { width, height } = Dimensions.get('window');
+const Stack = createNativeStackNavigator();
 
 
 // HomeScreen component
-const HomeScreen = ({ navigation, query, setQuery, handleSubmit, maxResults, setMaxResults, channel, setChannel, numTextInputs, setNumTextInputs, data, error, setData, setError, queryString, setQueryString }) => (
+const HomeScreen = ({ navigation, query, setQuery, handleSubmit, maxResults, setMaxResults, channel, setChannel, numTextInputs, setNumTextInputs, data, error, setData, setError, queryString, setQueryString, api}) => (
   // Logo
   <View style={styles.container}>
     <View style={{ marginTop:0, marginBottom: 60, justifyContent: "center", alignItems: "center"}}>
@@ -63,6 +61,7 @@ const HomeScreen = ({ navigation, query, setQuery, handleSubmit, maxResults, set
             <Text style={{color: "grey", fontSize: 11}}>By continuing, you agree to the<Text style={{textDecorationLine: "underline", color:"#A604F2"}}> Disclaimer</Text></Text>
       </TouchableOpacity>
       {error && <Text style={styles.errors}>{JSON.stringify(error)}</Text>}
+      {api && <Text style={{color: "green"}}>{api}</Text>}
       <StatusBar style="auto" />
     </View>
   
@@ -77,8 +76,7 @@ const HomeScreen = ({ navigation, query, setQuery, handleSubmit, maxResults, set
 
 
 // VideoScreenWrapper component
-function VideoScreenWrapper({ navigation, data, maxResults }) {
-  const { width, height } = Dimensions.get('window');
+function VideoScreenWrapper({ navigation, data, maxResults, setError }) {
   const flatListRef = useRef(null);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -86,10 +84,15 @@ function VideoScreenWrapper({ navigation, data, maxResults }) {
 
   // Memorize the data
   // Add a final page to the video feed
-  const modifiedData = useMemo(() => {
-    if (data && data.data) {
-      return [...data.data, { type: 'finalPage' }];
-    }}, [data, data.data]);
+    const modifiedData = useMemo(() => {
+      try{
+      if (data && data.data) {
+        return [...data.data, { type: 'finalPage' }];
+      }}catch(e){
+        setError("Something went wrong, try again!")
+        navigation.navigate("Home")
+        return;
+      }}, [data, data.data]);
 
   
     // Loading page
@@ -111,6 +114,8 @@ function VideoScreenWrapper({ navigation, data, maxResults }) {
     const visibleIndex = viewableItems[0]?.index;
     if (visibleIndex !== undefined && visibleIndex !== currentVideoIndex) {
       setCurrentVideoIndex(visibleIndex);
+      //const currentVideo = data.data[currentVideoIndex];
+      //console.log(currentVideo);
       webViewRefs.current.forEach((ref, index) => {
         // Pause the video if it's not the currently visible one
         if (ref && index !== visibleIndex) {
@@ -121,9 +126,10 @@ function VideoScreenWrapper({ navigation, data, maxResults }) {
   };
 
 
+
   try {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "black", height: "100%", width: width }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "black", height: height, width: width }}>
         <View style={{ backgroundColor: "black", height: height, width: width, marginTop: 0, marginBottom: 0, padding: 0, justifyContent: "center", alignItems: "center" }}>
           <FlatList
             style={{ flex: 1, marginBottom: 0, padding: 0, backgroundColor: "black" }}
@@ -142,6 +148,7 @@ function VideoScreenWrapper({ navigation, data, maxResults }) {
                 );
               }
               return(
+                <View>
                 <WebView
                   ref={(ref) => (webViewRefs.current[index] = ref)}
                   source={{ uri: item }}
@@ -149,6 +156,7 @@ function VideoScreenWrapper({ navigation, data, maxResults }) {
                   mediaPlaybackRequiresUserAction={true}
                   javaScriptEnabled={true}
               />
+              </View>
               );
             }}
             keyExtractor={(item, index) => index.toString()}
@@ -168,7 +176,6 @@ function VideoScreenWrapper({ navigation, data, maxResults }) {
 
 export default function App() {
   const [maxResults, setMaxResults] = useState(5);
-  const [token, setToken] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState([]);
@@ -178,14 +185,16 @@ export default function App() {
   const [queryString, setQueryString] = useState("");
   const [isFirstLaunched, setIsFirstLaunched] = useState(null)
   const [loading, setLoading] = useState(false);
-  const [apppReady, setAppReady] = useState(false);
+  const [api, setAPI] = useState(null);
 
-  SplashScreen.hideAsync(); // Hide the splash screen after the app is ready
+  SplashScreen.hideAsync();
 
+  
   // Check if the app is launched for the first time
   useEffect(() =>{
     const checkFirstLaunch = async () => {
       try{
+
         // Get hasLAunched from AsyncStorage
         const hashLaunched = await AsyncStorage.getItem('hasLaunched');
         // If nothing is found for hasLaunched
@@ -222,6 +231,8 @@ export default function App() {
         } else {
           setIsFirstLaunched(false)
         }
+        const API = await AsyncStorage.getItem('api_key');
+        setAPI(API);        
       }
       catch (error){
         console.error('Error Checking first launch: ', error);
@@ -261,6 +272,7 @@ export default function App() {
     setData(null);
     setLoading(true);
 
+
     // if both channel and query are entered, show an error
     if (channel && query && channel.length > 0){
       setError("Please only enter a channel or a query, not both");
@@ -273,7 +285,7 @@ export default function App() {
       setLoading(false);
       return;
     }
-    // If queryString is empty, show an error
+    // If queryString is empty, show an errorz
     else if (queryString==""){
       setQueryString(null)
       setError("Please enter one or more keywords or hashtags")
@@ -324,12 +336,13 @@ export default function App() {
       // Parse the json response
       const dataJson = await response.json();
       setData(dataJson);
+      setError(dataJson);
       setLoading(false);
       // Navigate to the VideoScreen with the data
-      navigation.navigate('VideoScreen', {
+      {/*navigation.navigate('VideoScreen', {
         data: dataJson,
         numVideos: maxResults
-      });
+      });*/}
     }catch (error) { 
       setError(error); 
     }
@@ -350,7 +363,7 @@ export default function App() {
       <Stack.Screen name="Home">
         {({navigation}) => (
             <View style={{flex: 1}}>
-                {loading && <LoadingScreen />}
+                {loading && <LoadingScreen/>}
                 {!loading && (
                     <HomeScreen 
                         navigation={navigation}
@@ -367,6 +380,7 @@ export default function App() {
                         handleSubmit={handleSubmit}
                         queryString={queryString}
                         setQueryString={setQueryString}
+                        api={api}
                     />
                 )}
             </View>
@@ -379,6 +393,7 @@ export default function App() {
           data={data}
           numVideos={numVideos}
           maxResults={maxResults}
+          setError={setError}
             />
           )}
         </Stack.Screen>
@@ -395,8 +410,8 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    height: height,
-    width: width,
+    height: "100%",
+    width: "100%",
     backgroundColor: '#0A0D17',
     alignItems: 'center',
     justifyContent: 'center',
@@ -422,8 +437,8 @@ const styles = StyleSheet.create({
     fontWeight: 400,
     color: "white",
     opacity: .6,
-    marginLeft: width/20,
-    marginRight: width/20,
+    marginLeft: "5%",
+    marginRight: "5%",
     textAlign: "center",
     marginBottom: 30,
   },
@@ -451,7 +466,8 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     paddingHorizontal: 10,
     top:220,
-    width: width/2,
+    width: "75%",
+    height: "11%",
   },
   input1: {
     position: "absolute",
@@ -462,7 +478,8 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     paddingHorizontal: 10,
     top: 140,
-    width: width/2,
+    width: "75%",
+    height: "11%",
   },
   errors: {
     position: "absolute",
@@ -475,7 +492,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#A604F2",
     color: "#A604F2",
     borderRadius: 5,
-    width: width/3.7,
+    width: "27.027027027%",
     height:  34,
     bottom: 100,
     alignItems: "center",
